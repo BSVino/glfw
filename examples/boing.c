@@ -30,6 +30,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+
+#define GLFW_INCLUDE_GLU
 #include <GL/glfw3.h>
 
 
@@ -586,7 +588,7 @@ int main( void )
    }
 
    glfwSetWindowSizeCallback( reshape );
-   glfwEnable( window, GLFW_STICKY_KEYS );
+   glfwSetInputMode( window, GLFW_STICKY_KEYS, GL_TRUE );
    glfwSwapInterval( 1 );
    glfwSetTime( 0.0 );
 

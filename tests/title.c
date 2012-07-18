@@ -1,5 +1,5 @@
 //========================================================================
-// Dynamic linking test
+// UTF-8 window title test
 // Copyright (c) Camilla Berglund <elmindreda@elmindreda.org>
 //
 // This software is provided 'as-is', without any express or implied
@@ -23,11 +23,10 @@
 //
 //========================================================================
 //
-// This test came about as the result of bug #3060461
+// This test sets a UTF-8 window title
 //
 //========================================================================
 
-#define GLFW_DLL
 #include <GL/glfw3.h>
 
 #include <stdio.h>
@@ -41,51 +40,31 @@ static void window_size_callback(GLFWwindow window, int width, int height)
 int main(void)
 {
     GLFWwindow window;
-    int major, minor, rev;
-    glfwGetVersion(&major, &minor, &rev);
-
-    printf("GLFW header version: %i.%i.%i\n",
-           GLFW_VERSION_MAJOR,
-           GLFW_VERSION_MINOR,
-           GLFW_VERSION_REVISION);
-    printf("GLFW library version: %i.%i.%i\n", major, minor, rev);
-    printf("GLFW library version string: %s\n", glfwGetVersionString());
-
-    if (major != GLFW_VERSION_MAJOR ||
-        minor != GLFW_VERSION_MINOR ||
-        rev != GLFW_VERSION_REVISION)
-    {
-        fprintf(stderr, "GLFW library version mismatch\n");
-        exit(EXIT_FAILURE);
-    }
 
     if (!glfwInit())
     {
-        fprintf(stderr, "Failed to initialize GLFW\n");
+        fprintf(stderr, "Failed to initialize GLFW: %s\n", glfwErrorString(glfwGetError()));
         exit(EXIT_FAILURE);
     }
 
-    window = glfwOpenWindow(0, 0, GLFW_WINDOWED, "Dynamic Linking Test", NULL);
+    window = glfwOpenWindow(0, 0, GLFW_WINDOWED, "English 日本語 русский язык 官話", NULL);
     if (!window)
     {
-        glfwTerminate();
-
-        fprintf(stderr, "Failed to open GLFW window\n");
+        fprintf(stderr, "Failed to open GLFW window: %s\n", glfwErrorString(glfwGetError()));
         exit(EXIT_FAILURE);
     }
 
-    glfwSetWindowSizeCallback(window_size_callback);
     glfwSwapInterval(1);
 
-    while (glfwIsWindow(window))
+    glfwSetWindowSizeCallback(window_size_callback);
+
+    while (glfwIsWindow(window) == GL_TRUE)
     {
         glClear(GL_COLOR_BUFFER_BIT);
-
         glfwSwapBuffers();
-        glfwPollEvents();
+        glfwWaitEvents();
     }
 
-    glfwTerminate();
     exit(EXIT_SUCCESS);
 }
 

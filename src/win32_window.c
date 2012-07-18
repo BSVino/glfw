@@ -35,30 +35,6 @@
 
 
 //========================================================================
-// Convert BPP to RGB bits based on "best guess"
-//========================================================================
-
-static void bpp2rgb(int bpp, int* r, int* g, int* b)
-{
-    int delta;
-
-    // We assume that by 32 they really meant 24
-    if (bpp == 32)
-        bpp = 24;
-
-    // Convert "bits per pixel" to red, green & blue sizes
-
-    *r = *g = *b = bpp / 3;
-    delta = bpp - (*r * 3);
-    if (delta >= 1)
-        *g = *g + 1;
-
-    if (delta == 2)
-        *r = *r + 1;
-}
-
-
-//========================================================================
 // Enable/disable minimize/restore animations
 //========================================================================
 
@@ -173,38 +149,44 @@ static int getPixelFormatAttrib(_GLFWwindow* window, int pixelFormat, int attrib
 
 static _GLFWfbconfig* getFBConfigs(_GLFWwindow* window, unsigned int* found)
 {
-    _GLFWfbconfig* result;
+    _GLFWfbconfig* fbconfigs;
     PIXELFORMATDESCRIPTOR pfd;
-    int i, count;
+    int i, available;
 
     *found = 0;
 
     if (window->WGL.ARB_pixel_format)
-        count = getPixelFormatAttrib(window, 1, WGL_NUMBER_PIXEL_FORMATS_ARB);
+    {
+        available = getPixelFormatAttrib(window,
+                                         1,
+                                         WGL_NUMBER_PIXEL_FORMATS_ARB);
+    }
     else
     {
-        count = _glfw_DescribePixelFormat(window->WGL.DC,
-                                          1,
-                                          sizeof(PIXELFORMATDESCRIPTOR),
-                                          NULL);
+        available = DescribePixelFormat(window->WGL.DC,
+                                        1,
+                                        sizeof(PIXELFORMATDESCRIPTOR),
+                                        NULL);
     }
 
-    if (!count)
+    if (!available)
     {
         _glfwSetError(GLFW_OPENGL_UNAVAILABLE, "Win32/WGL: No pixel formats found");
         return NULL;
     }
 
-    result = (_GLFWfbconfig*) _glfwMalloc(sizeof(_GLFWfbconfig) * count);
-    if (!result)
+    fbconfigs = (_GLFWfbconfig*) malloc(sizeof(_GLFWfbconfig) * available);
+    if (!fbconfigs)
     {
         _glfwSetError(GLFW_OUT_OF_MEMORY,
                       "Win32/WGL: Failed to allocate _GLFWfbconfig array");
         return NULL;
     }
 
-    for (i = 1;  i <= count;  i++)
+    for (i = 1;  i <= available;  i++)
     {
+        _GLFWfbconfig* f = fbconfigs + *found;
+
         if (window->WGL.ARB_pixel_format)
         {
             // Get pixel format attributes through WGL_ARB_pixel_format
@@ -227,50 +209,35 @@ static _GLFWfbconfig* getFBConfigs(_GLFWwindow* window, unsigned int* found)
                 continue;
             }
 
-            result[*found].redBits =
-                getPixelFormatAttrib(window, i, WGL_RED_BITS_ARB);
-            result[*found].greenBits =
-                getPixelFormatAttrib(window, i, WGL_GREEN_BITS_ARB);
-            result[*found].blueBits =
-                getPixelFormatAttrib(window, i, WGL_BLUE_BITS_ARB);
-            result[*found].alphaBits =
-                getPixelFormatAttrib(window, i, WGL_ALPHA_BITS_ARB);
+            f->redBits = getPixelFormatAttrib(window, i, WGL_RED_BITS_ARB);
+            f->greenBits = getPixelFormatAttrib(window, i, WGL_GREEN_BITS_ARB);
+            f->blueBits = getPixelFormatAttrib(window, i, WGL_BLUE_BITS_ARB);
+            f->alphaBits = getPixelFormatAttrib(window, i, WGL_ALPHA_BITS_ARB);
 
-            result[*found].depthBits =
-                getPixelFormatAttrib(window, i, WGL_DEPTH_BITS_ARB);
-            result[*found].stencilBits =
-                getPixelFormatAttrib(window, i, WGL_STENCIL_BITS_ARB);
+            f->depthBits = getPixelFormatAttrib(window, i, WGL_DEPTH_BITS_ARB);
+            f->stencilBits = getPixelFormatAttrib(window, i, WGL_STENCIL_BITS_ARB);
 
-            result[*found].accumRedBits =
-                getPixelFormatAttrib(window, i, WGL_ACCUM_RED_BITS_ARB);
-            result[*found].accumGreenBits =
-                getPixelFormatAttrib(window, i, WGL_ACCUM_GREEN_BITS_ARB);
-            result[*found].accumBlueBits =
-                getPixelFormatAttrib(window, i, WGL_ACCUM_BLUE_BITS_ARB);
-            result[*found].accumAlphaBits =
-                getPixelFormatAttrib(window, i, WGL_ACCUM_ALPHA_BITS_ARB);
+            f->accumRedBits = getPixelFormatAttrib(window, i, WGL_ACCUM_RED_BITS_ARB);
+            f->accumGreenBits = getPixelFormatAttrib(window, i, WGL_ACCUM_GREEN_BITS_ARB);
+            f->accumBlueBits = getPixelFormatAttrib(window, i, WGL_ACCUM_BLUE_BITS_ARB);
+            f->accumAlphaBits = getPixelFormatAttrib(window, i, WGL_ACCUM_ALPHA_BITS_ARB);
 
-            result[*found].auxBuffers =
-                getPixelFormatAttrib(window, i, WGL_AUX_BUFFERS_ARB);
-            result[*found].stereo =
-                getPixelFormatAttrib(window, i, WGL_STEREO_ARB);
+            f->auxBuffers = getPixelFormatAttrib(window, i, WGL_AUX_BUFFERS_ARB);
+            f->stereo = getPixelFormatAttrib(window, i, WGL_STEREO_ARB);
 
             if (window->WGL.ARB_multisample)
-            {
-                result[*found].samples =
-                    getPixelFormatAttrib(window, i, WGL_SAMPLES_ARB);
-            }
+                f->samples = getPixelFormatAttrib(window, i, WGL_SAMPLES_ARB);
             else
-                result[*found].samples = 0;
+                f->samples = 0;
         }
         else
         {
             // Get pixel format attributes through old-fashioned PFDs
 
-            if (!_glfw_DescribePixelFormat(window->WGL.DC,
-                                           i,
-                                           sizeof(PIXELFORMATDESCRIPTOR),
-                                           &pfd))
+            if (!DescribePixelFormat(window->WGL.DC,
+                                     i,
+                                     sizeof(PIXELFORMATDESCRIPTOR),
+                                     &pfd))
             {
                 continue;
             }
@@ -291,32 +258,38 @@ static _GLFWfbconfig* getFBConfigs(_GLFWwindow* window, unsigned int* found)
             if (pfd.iPixelType != PFD_TYPE_RGBA)
                 continue;
 
-            result[*found].redBits = pfd.cRedBits;
-            result[*found].greenBits = pfd.cGreenBits;
-            result[*found].blueBits = pfd.cBlueBits;
-            result[*found].alphaBits = pfd.cAlphaBits;
+            f->redBits = pfd.cRedBits;
+            f->greenBits = pfd.cGreenBits;
+            f->blueBits = pfd.cBlueBits;
+            f->alphaBits = pfd.cAlphaBits;
 
-            result[*found].depthBits = pfd.cDepthBits;
-            result[*found].stencilBits = pfd.cStencilBits;
+            f->depthBits = pfd.cDepthBits;
+            f->stencilBits = pfd.cStencilBits;
 
-            result[*found].accumRedBits = pfd.cAccumRedBits;
-            result[*found].accumGreenBits = pfd.cAccumGreenBits;
-            result[*found].accumBlueBits = pfd.cAccumBlueBits;
-            result[*found].accumAlphaBits = pfd.cAccumAlphaBits;
+            f->accumRedBits = pfd.cAccumRedBits;
+            f->accumGreenBits = pfd.cAccumGreenBits;
+            f->accumBlueBits = pfd.cAccumBlueBits;
+            f->accumAlphaBits = pfd.cAccumAlphaBits;
 
-            result[*found].auxBuffers = pfd.cAuxBuffers;
-            result[*found].stereo = (pfd.dwFlags & PFD_STEREO) ? GL_TRUE : GL_FALSE;
+            f->auxBuffers = pfd.cAuxBuffers;
+            f->stereo = (pfd.dwFlags & PFD_STEREO) ? GL_TRUE : GL_FALSE;
 
             // PFD pixel formats do not support FSAA
-            result[*found].samples = 0;
+            f->samples = 0;
         }
 
-        result[*found].platformID = i;
+        f->platformID = i;
 
         (*found)++;
     }
 
-    return result;
+    if (*found == 0)
+    {
+        free(fbconfigs);
+        return NULL;
+    }
+
+    return fbconfigs;
 }
 
 
@@ -335,14 +308,14 @@ static GLboolean createContext(_GLFWwindow* window,
     if (wndconfig->share)
         share = wndconfig->share->WGL.context;
 
-    if (!_glfw_DescribePixelFormat(window->WGL.DC, pixelFormat, sizeof(pfd), &pfd))
+    if (!DescribePixelFormat(window->WGL.DC, pixelFormat, sizeof(pfd), &pfd))
     {
         _glfwSetError(GLFW_OPENGL_UNAVAILABLE,
                       "Win32/WGL: Failed to retrieve PFD for selected pixel format");
         return GL_FALSE;
     }
 
-    if (!_glfw_SetPixelFormat(window->WGL.DC, pixelFormat, &pfd))
+    if (!SetPixelFormat(window->WGL.DC, pixelFormat, &pfd))
     {
         _glfwSetError(GLFW_OPENGL_UNAVAILABLE,
                       "Win32/WGL: Failed to set selected pixel format");
@@ -476,7 +449,7 @@ static GLboolean createContext(_GLFWwindow* window,
 // Hide mouse cursor
 //========================================================================
 
-static void hideMouseCursor(_GLFWwindow* window)
+static void hideCursor(_GLFWwindow* window)
 {
 }
 
@@ -485,7 +458,7 @@ static void hideMouseCursor(_GLFWwindow* window)
 // Capture mouse cursor
 //========================================================================
 
-static void captureMouseCursor(_GLFWwindow* window)
+static void captureCursor(_GLFWwindow* window)
 {
     RECT ClipWindowRect;
 
@@ -504,7 +477,7 @@ static void captureMouseCursor(_GLFWwindow* window)
 // Show mouse cursor
 //========================================================================
 
-static void showMouseCursor(_GLFWwindow* window)
+static void showCursor(_GLFWwindow* window)
 {
     // Un-capture cursor
     ReleaseCapture();
@@ -811,7 +784,7 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
                 // The window was deactivated (or iconified, see above)
 
                 if (window->cursorMode == GLFW_CURSOR_CAPTURED)
-                    showMouseCursor(window);
+                    showCursor(window);
 
                 if (window->mode == GLFW_FULLSCREEN)
                 {
@@ -834,7 +807,7 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
                 // The window was activated
 
                 if (window->cursorMode == GLFW_CURSOR_CAPTURED)
-                    captureMouseCursor(window);
+                    captureCursor(window);
 
                 if (window->mode == GLFW_FULLSCREEN)
                 {
@@ -895,7 +868,7 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
             if (_glfwLibrary.charCallback)
                 translateChar(window, (DWORD) wParam, (DWORD) lParam);
 
-            return 0;
+            break;
         }
 
         case WM_KEYUP:
@@ -910,7 +883,7 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
             else
                 _glfwInputKey(window, translateKey(wParam, lParam), GLFW_RELEASE);
 
-            return 0;
+            break;
         }
 
         case WM_LBUTTONDOWN:
@@ -989,14 +962,14 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
 
         case WM_MOUSEMOVE:
         {
-            int newMouseX, newMouseY;
+            int newCursorX, newCursorY;
 
-            // Get signed (!) mouse position
-            newMouseX = (int)((short)LOWORD(lParam));
-            newMouseY = (int)((short)HIWORD(lParam));
+            // Get signed (!) cursor position
+            newCursorX = (int)((short)LOWORD(lParam));
+            newCursorY = (int)((short)HIWORD(lParam));
 
-            if (newMouseX != window->Win32.oldMouseX ||
-                newMouseY != window->Win32.oldMouseY)
+            if (newCursorX != window->Win32.oldCursorX ||
+                newCursorY != window->Win32.oldCursorY)
             {
                 int x, y;
 
@@ -1005,28 +978,48 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
                     if (_glfwLibrary.activeWindow != window)
                         return 0;
 
-                    x = newMouseX - window->Win32.oldMouseX;
-                    y = newMouseY - window->Win32.oldMouseY;
+                    x = newCursorX - window->Win32.oldCursorX;
+                    y = newCursorY - window->Win32.oldCursorY;
                 }
                 else
                 {
-                    x = newMouseX;
-                    y = newMouseY;
+                    x = newCursorX;
+                    y = newCursorY;
                 }
 
-                window->Win32.oldMouseX = newMouseX;
-                window->Win32.oldMouseY = newMouseY;
+                window->Win32.oldCursorX = newCursorX;
+                window->Win32.oldCursorY = newCursorY;
                 window->Win32.cursorCentered = GL_FALSE;
 
                 _glfwInputCursorMotion(window, x, y);
             }
 
+            if (!window->Win32.cursorInside)
+            {
+                TRACKMOUSEEVENT tme;
+                ZeroMemory(&tme, sizeof(tme));
+                tme.cbSize = sizeof(tme);
+                tme.dwFlags = TME_LEAVE;
+                tme.hwndTrack = window->Win32.handle;
+                TrackMouseEvent(&tme);
+
+                window->Win32.cursorInside = GL_TRUE;
+                _glfwInputCursorEnter(window, GL_TRUE);
+            }
+
+            return 0;
+        }
+
+        case WM_MOUSELEAVE:
+        {
+            window->Win32.cursorInside = GL_FALSE;
+            _glfwInputCursorEnter(window, GL_FALSE);
             return 0;
         }
 
         case WM_MOUSEWHEEL:
         {
-            _glfwInputScroll(window, 0, (((int) wParam) >> 16) / WHEEL_DELTA);
+            _glfwInputScroll(window, 0.0, (SHORT) HIWORD(wParam) / (double) WHEEL_DELTA);
             return 0;
         }
 
@@ -1034,7 +1027,7 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
         {
             // This message is only sent on Windows Vista and later
 
-            _glfwInputScroll(window, (((int) wParam) >> 16) / WHEEL_DELTA, 0);
+            _glfwInputScroll(window, (SHORT) HIWORD(wParam) / (double) WHEEL_DELTA, 0.0);
             return 0;
         }
 
@@ -1220,7 +1213,7 @@ static ATOM registerWindowClass(void)
     wc.lpszClassName = _GLFW_WNDCLASSNAME;            // Set class name
 
     // Load user-provided icon if available
-    wc.hIcon = LoadIcon(_glfwLibrary.Win32.instance, "GLFW_ICON");
+    wc.hIcon = LoadIcon(_glfwLibrary.Win32.instance, L"GLFW_ICON");
     if (!wc.hIcon)
     {
         // Load default icon
@@ -1257,13 +1250,13 @@ static int choosePixelFormat(_GLFWwindow* window, const _GLFWfbconfig* fbconfig)
     closest = _glfwChooseFBConfig(fbconfig, fbconfigs, fbcount);
     if (!closest)
     {
-        _glfwFree(fbconfigs);
+        free(fbconfigs);
         return 0;
     }
 
     pixelFormat = (int) closest->platformID;
 
-    _glfwFree(fbconfigs);
+    free(fbconfigs);
     fbconfigs = NULL;
     closest = NULL;
 
@@ -1283,6 +1276,7 @@ static int createWindow(_GLFWwindow* window,
     int pixelFormat, fullWidth, fullHeight;
     RECT wa;
     POINT pos;
+    WCHAR* wideTitle;
 
     // Set common window styles
     dwStyle = WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE;
@@ -1331,9 +1325,17 @@ static int createWindow(_GLFWwindow* window,
     else
         SystemParametersInfo(SPI_GETWORKAREA, 0, &wa, 0);
 
+    wideTitle = _glfwCreateWideStringFromUTF8(wndconfig->title);
+    if (!wideTitle)
+    {
+        _glfwSetError(GLFW_PLATFORM_ERROR,
+                      "glfwOpenWindow: Failed to convert title to wide string");
+        return GL_FALSE;
+    }
+
     window->Win32.handle = CreateWindowEx(window->Win32.dwExStyle,
                                           _GLFW_WNDCLASSNAME,
-                                          wndconfig->title,
+                                          wideTitle,
                                           window->Win32.dwStyle,
                                           wa.left, wa.top,       // Window position
                                           fullWidth,             // Decorated window width
@@ -1348,6 +1350,8 @@ static int createWindow(_GLFWwindow* window,
         _glfwSetError(GLFW_PLATFORM_ERROR, "Win32/WGL: Failed to create window");
         return GL_FALSE;
     }
+
+    free(wideTitle);
 
     window->WGL.DC = GetDC(window->Win32.handle);
     if (!window->WGL.DC)
@@ -1368,11 +1372,11 @@ static int createWindow(_GLFWwindow* window,
 
     initWGLExtensions(window);
 
-    // Initialize mouse position data
+    // Initialize cursor position data
     GetCursorPos(&pos);
     ScreenToClient(window->Win32.handle, &pos);
-    window->Win32.oldMouseX = window->cursorPosX = pos.x;
-    window->Win32.oldMouseY = window->cursorPosY = pos.y;
+    window->Win32.oldCursorX = window->cursorPosX = pos.x;
+    window->Win32.oldCursorY = window->cursorPosY = pos.y;
 
     return GL_TRUE;
 }
@@ -1430,6 +1434,7 @@ int _glfwPlatformOpenWindow(_GLFWwindow* window,
     GLboolean recreateContext = GL_FALSE;
 
     window->Win32.desiredRefreshRate = wndconfig->refreshRate;
+    window->resizable = wndconfig->resizable;
 
     if (!_glfwLibrary.Win32.classAtom)
     {
@@ -1568,7 +1573,17 @@ void _glfwPlatformCloseWindow(_GLFWwindow* window)
 
 void _glfwPlatformSetWindowTitle(_GLFWwindow* window, const char* title)
 {
-    SetWindowText(window->Win32.handle, title);
+    WCHAR* wideTitle = _glfwCreateWideStringFromUTF8(title);
+    if (!wideTitle)
+    {
+        _glfwSetError(GLFW_PLATFORM_ERROR,
+                      "glfwSetWindowTitle: Failed to convert title to wide string");
+        return;
+    }
+
+    SetWindowText(window->Win32.handle, wideTitle);
+
+    free(wideTitle);
 }
 
 
@@ -1578,29 +1593,10 @@ void _glfwPlatformSetWindowTitle(_GLFWwindow* window, const char* title)
 
 void _glfwPlatformSetWindowSize(_GLFWwindow* window, int width, int height)
 {
-    //int bpp, refresh;
-    int newMode = 0;
     GLboolean sizeChanged = GL_FALSE;
 
     if (window->mode == GLFW_FULLSCREEN)
     {
-        // Get some info about the current mode
-
-        DEVMODE dm;
-
-        dm.dmSize = sizeof(DEVMODE);
-        //if (EnumDisplaySettings(NULL, window->Win32.modeID, &dm))
-        //{
-            // We need to keep BPP the same for the OpenGL context to keep working
-            //bpp = dm.dmBitsPerPel;
-
-            // Get closest match for target video mode
-            //refresh = window->Win32.desiredRefreshRate;
-            //newMode = _glfwGetClosestVideoModeBPP(&width, &height, &bpp, &refresh);
-        //}
-        //else
-            //newMode = window->Win32.modeID;
-
         if (width > window->width || height > window->height)
         {
             // The new video mode is larger than the current one, so we resize
@@ -1612,8 +1608,7 @@ void _glfwPlatformSetWindowSize(_GLFWwindow* window, int width, int height)
             sizeChanged = GL_TRUE;
         }
 
-        //if (newMode != window->Win32.modeID)
-            //_glfwSetVideoModeMODE(newMode);
+        // TODO: Change video mode
     }
     else
     {
@@ -1637,7 +1632,13 @@ void _glfwPlatformSetWindowSize(_GLFWwindow* window, int width, int height)
 
 void _glfwPlatformSetWindowPos(_GLFWwindow* window, int x, int y)
 {
-    SetWindowPos(window->Win32.handle, HWND_TOP, x, y, 0, 0,
+    RECT rect;
+
+    GetClientRect(window->Win32.handle, &rect);
+    AdjustWindowRectEx(&rect, window->Win32.dwStyle, FALSE, window->Win32.dwExStyle);
+
+    SetWindowPos(window->Win32.handle, HWND_TOP,
+                 x + rect.left, y + rect.top, 0, 0,
                  SWP_NOOWNERZORDER | SWP_NOSIZE | SWP_NOZORDER);
 }
 
@@ -1675,7 +1676,7 @@ void _glfwPlatformRefreshWindowParams(void)
     _GLFWwindow* window = _glfwLibrary.currentWindow;
 
     // Obtain a detailed description of current pixel format
-    pixelFormat = _glfw_GetPixelFormat(window->WGL.DC);
+    pixelFormat = GetPixelFormat(window->WGL.DC);
 
     if (window->WGL.ARB_pixel_format)
     {
@@ -1729,8 +1730,8 @@ void _glfwPlatformRefreshWindowParams(void)
     }
     else
     {
-        _glfw_DescribePixelFormat(window->WGL.DC, pixelFormat,
-                                  sizeof(PIXELFORMATDESCRIPTOR), &pfd);
+        DescribePixelFormat(window->WGL.DC, pixelFormat,
+                            sizeof(PIXELFORMATDESCRIPTOR), &pfd);
 
         // Is current OpenGL context accelerated?
         window->accelerated = (pfd.dwFlags & PFD_GENERIC_ACCELERATED) ||
@@ -1781,13 +1782,13 @@ void _glfwPlatformPollEvents(void)
     if (window)
     {
         window->Win32.cursorCentered = GL_FALSE;
-        window->Win32.oldMouseX = window->width / 2;
-        window->Win32.oldMouseY = window->height / 2;
+        window->Win32.oldCursorX = window->width / 2;
+        window->Win32.oldCursorY = window->height / 2;
     }
     else
     {
-        //window->Win32.oldMouseX = window->cursorPosX;
-        //window->Win32.oldMouseY = window->cursorPosY;
+        //window->Win32.oldCursorX = window->cursorPosX;
+        //window->Win32.oldCursorY = window->cursorPosY;
     }
 
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -1844,9 +1845,9 @@ void _glfwPlatformPollEvents(void)
         if (window->cursorMode == GLFW_CURSOR_CAPTURED &&
             !window->Win32.cursorCentered)
         {
-            _glfwPlatformSetMouseCursorPos(window,
-                                           window->width / 2,
-                                           window->height / 2);
+            _glfwPlatformSetCursorPos(window,
+                                      window->width / 2,
+                                      window->height / 2);
             window->Win32.cursorCentered = GL_TRUE;
         }
     }
@@ -1866,10 +1867,10 @@ void _glfwPlatformWaitEvents(void)
 
 
 //========================================================================
-// Set physical mouse cursor position
+// Set physical cursor position
 //========================================================================
 
-void _glfwPlatformSetMouseCursorPos(_GLFWwindow* window, int x, int y)
+void _glfwPlatformSetCursorPos(_GLFWwindow* window, int x, int y)
 {
     POINT pos;
 
@@ -1891,13 +1892,13 @@ void _glfwPlatformSetCursorMode(_GLFWwindow* window, int mode)
     switch (mode)
     {
         case GLFW_CURSOR_NORMAL:
-            showMouseCursor(window);
+            showCursor(window);
             break;
         case GLFW_CURSOR_HIDDEN:
-            hideMouseCursor(window);
+            hideCursor(window);
             break;
         case GLFW_CURSOR_CAPTURED:
-            captureMouseCursor(window);
+            captureCursor(window);
             break;
     }
 }

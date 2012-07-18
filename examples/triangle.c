@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define GLFW_INCLUDE_GLU
 #include <GL/glfw3.h>
 
 int main(void)
@@ -30,7 +31,7 @@ int main(void)
     }
 
     // Ensure we can capture the escape key being pressed below
-    glfwEnable(window, GLFW_STICKY_KEYS);
+    glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
 
     // Enable vertical sync (on cards that support it)
     glfwSwapInterval(1);
@@ -38,7 +39,7 @@ int main(void)
     do
     {
         double t = glfwGetTime();
-        glfwGetMousePos(window, &x, NULL);
+        glfwGetCursorPos(window, &x, NULL);
 
         // Get window size (may be different than the requested size)
         glfwGetWindowSize(window, &width, &height);

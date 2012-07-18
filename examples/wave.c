@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+
+#define GLFW_INCLUDE_GLU
 #include <GL/glfw3.h>
 
 #ifndef M_PI
@@ -309,22 +311,22 @@ void mouse_button_callback(GLFWwindow window, int button, int action)
 
     if (action == GLFW_PRESS)
     {
-        glfwSetCursorMode(window, GLFW_CURSOR_CAPTURED);
+        glfwSetInputMode(window, GLFW_CURSOR_MODE, GLFW_CURSOR_CAPTURED);
         locked = GL_TRUE;
     }
     else
     {
         locked = GL_FALSE;
-        glfwSetCursorMode(window, GLFW_CURSOR_NORMAL);
+        glfwSetInputMode(window, GLFW_CURSOR_MODE, GLFW_CURSOR_NORMAL);
     }
 }
 
 
 //========================================================================
-// Callback function for mouse motion events
+// Callback function for cursor motion events
 //========================================================================
 
-void mouse_position_callback(GLFWwindow window, int x, int y)
+void cursor_position_callback(GLFWwindow window, int x, int y)
 {
     if (locked)
     {
@@ -341,9 +343,9 @@ void mouse_position_callback(GLFWwindow window, int x, int y)
 // Callback function for scroll events
 //========================================================================
 
-void scroll_callback(GLFWwindow window, int x, int y)
+void scroll_callback(GLFWwindow window, double x, double y)
 {
-    zoom += y / 4.f;
+    zoom += (float) y / 4.f;
     if (zoom < 0)
         zoom = 0;
 }
@@ -396,12 +398,12 @@ int main(int argc, char* argv[])
 
     // Keyboard handler
     glfwSetKeyCallback(key_callback);
-    glfwEnable(window, GLFW_KEY_REPEAT);
+    glfwSetInputMode(window, GLFW_KEY_REPEAT, GL_TRUE);
 
     // Window resize handler
     glfwSetWindowSizeCallback(window_resize_callback);
     glfwSetMouseButtonCallback(mouse_button_callback);
-    glfwSetMousePosCallback(mouse_position_callback);
+    glfwSetCursorPosCallback(cursor_position_callback);
     glfwSetScrollCallback(scroll_callback);
 
     // Initialize OpenGL
